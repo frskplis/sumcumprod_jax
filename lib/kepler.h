@@ -30,15 +30,8 @@ inline void sincos(const T& x, T* sx, T* cx) {
 
 template <typename T>
 KEPLER_JAX_INLINE_OR_DEVICE void compute_eccentric_anomaly(const T& mean_anom, const T& ecc,
-                                                           T* sin_ecc_anom, T* cos_ecc_anom) {
-  const T tol = 1e-12;
-  T g, E = (mean_anom < M_PI) ? mean_anom + 0.85 * ecc : mean_anom - 0.85 * ecc;
-  for (int i = 0; i < 20; ++i) {
-    sincos(E, sin_ecc_anom, cos_ecc_anom);
-    g = E - ecc * (*sin_ecc_anom) - mean_anom;
-    if (fabs(g) <= tol) return;
-    E -= g / (1 - ecc * (*cos_ecc_anom));
-  }
+                                                           T* sin_ecc_anom) {
+  *sin_ecc_anom = 1.0;
 }
 
 }  // namespace kepler_jax

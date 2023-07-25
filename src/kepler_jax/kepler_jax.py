@@ -53,7 +53,7 @@ def _kepler_abstract(mean_anom, ecc):
     dtype = dtypes.canonicalize_dtype(mean_anom.dtype)
     assert dtypes.canonicalize_dtype(ecc.dtype) == dtype
     assert ecc.shape == shape
-    return (ShapedArray(shape, dtype), ShapedArray(shape, dtype))
+    return (ShapedArray(shape, dtype),)
 
 
 # We also need a lowering rule to provide an MLIR "lowering" of out primitive.
@@ -93,12 +93,12 @@ def _kepler_lowering(ctx, mean_anom, ecc, *, platform="cpu"):
         return custom_call(
             op_name,
             # Output types
-            out_types=[dtype, dtype],
+            out_types=[dtype],
             # The inputs:
             operands=[mlir.ir_constant(size), mean_anom, ecc],
             # Layout specification:
             operand_layouts=[(), layout, layout],
-            result_layouts=[layout, layout]
+            result_layouts=[layout]
         )
 
     elif platform == "gpu":
@@ -113,12 +113,12 @@ def _kepler_lowering(ctx, mean_anom, ecc, *, platform="cpu"):
         return custom_call(
             op_name,
             # Output types
-            out_types=[dtype, dtype],
+            out_types=[dtype],
             # The inputs:
             operands=[mean_anom, ecc],
             # Layout specification:
             operand_layouts=[layout, layout],
-            result_layouts=[layout, layout],
+            result_layouts=[layout],
             # GPU specific additional data
             backend_config=opaque
         )
