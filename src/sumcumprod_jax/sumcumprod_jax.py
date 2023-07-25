@@ -167,8 +167,6 @@ def _sumcumprod_batch(args, axes):
     x, = args
     bd, = axes
     x = jnp.moveaxis(x, bd, -1)
-    print(axes)
-    print(x)
     return sumcumprod(x), axes
 
 
