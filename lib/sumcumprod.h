@@ -5,21 +5,21 @@
 // particularly efficient or robust implementation. It's just here to demonstrate the
 // infrastructure required to extend JAX.
 
-#ifndef _KEPLER_JAX_KEPLER_H_
-#define _KEPLER_JAX_KEPLER_H_
+#ifndef _SUMCUMPROD_JAX_KEPLER_H_
+#define _SUMCUMPROD_JAX_KEPLER_H_
 
 #include <cmath>
 
-namespace kepler_jax {
+namespace sumcumprod_jax {
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846264338327950288
 #endif
 
 #ifdef __CUDACC__
-#define KEPLER_JAX_INLINE_OR_DEVICE __host__ __device__
+#define SUMCUMPROD_JAX_INLINE_OR_DEVICE __host__ __device__
 #else
-#define KEPLER_JAX_INLINE_OR_DEVICE inline
+#define SUMCUMPROD_JAX_INLINE_OR_DEVICE inline
 
 template <typename T>
 inline void sincos(const T& x, T* sx, T* cx) {
@@ -29,11 +29,10 @@ inline void sincos(const T& x, T* sx, T* cx) {
 #endif
 
 template <typename T>
-KEPLER_JAX_INLINE_OR_DEVICE void compute_eccentric_anomaly(const T& mean_anom, const T& ecc,
-                                                           T* sin_ecc_anom) {
+SUMCUMPROD_JAX_INLINE_OR_DEVICE void compute_eccentric_anomaly(const T& mean_anom, T* sin_ecc_anom) {
   *sin_ecc_anom = 1.0;
 }
 
-}  // namespace kepler_jax
+}  // namespace sumcumprod_jax
 
 #endif

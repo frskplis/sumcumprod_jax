@@ -61,8 +61,8 @@ class CMakeBuildExt(build_ext):
             ),
             "-DCMAKE_PREFIX_PATH={}".format(pybind11.get_cmake_dir()),
         ]
-        if os.environ.get("KEPLER_JAX_CUDA", "no").lower() == "yes":
-            cmake_args.append("-DKEPLER_JAX_CUDA=yes")
+        if os.environ.get("SUMCUMPROD_JAX_CUDA", "no").lower() == "yes":
+            cmake_args.append("-DSUMCUMPROD_JAX_CUDA=yes")
 
         os.makedirs(self.build_temp, exist_ok=True)
         subprocess.check_call(
@@ -88,28 +88,25 @@ class CMakeBuildExt(build_ext):
 
 extensions = [
     Extension(
-        "kepler_jax.cpu_ops",
-        ["src/kepler_jax/src/cpu_ops.cc"],
+        "sumcumprod_jax.cpu_ops",
+        ["src/sumcumprod_jax/src/cpu_ops.cc"],
     ),
 ]
 
-if os.environ.get("KEPLER_JAX_CUDA", "no").lower() == "yes":
+if os.environ.get("SUMCUMPROD_JAX_CUDA", "no").lower() == "yes":
     extensions.append(
         Extension(
-            "kepler_jax.gpu_ops",
+            "sumcumprod_jax.gpu_ops",
             [
-                "src/kepler_jax/src/gpu_ops.cc",
-                "src/kepler_jax/src/cuda_kernels.cc.cu",
+                "src/sumcumprod_jax/src/gpu_ops.cc",
+                "src/sumcumprod_jax/src/cuda_kernels.cc.cu",
             ],
         )
     )
 
 
 setup(
-    name="kepler_jax",
-    author="Dan Foreman-Mackey",
-    author_email="foreman.mackey@gmail.com",
-    url="https://github.com/dfm/extending-jax",
+    name="sumcumprod_jax",
     license="MIT",
     description=(
         "A simple demonstration of how you can extend JAX with custom C++ and "
