@@ -11,18 +11,20 @@ namespace sumcumprod_jax {
 namespace {
 
 template <typename T>
-__global__ void sumcumprod_kernel(std::int64_t size, const T *mean_anom, T *sin_ecc_anom) {
+__global__ void sumcumprod_kernel(std::int64_t size, int size_of_last_dim, const T *input_array, T *output_array) {
+
+  int tid_start = (blockIdx.x * blockDim.x) + threadIdx.x;
+  int tid_end = tid_start + (size_of_last_dim - tid_start%size_of_last_dim);
 
   float total_sum = 0.0;
   float multi = 1.0;
 
-  int tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-  for (int i = tid; i < size; i++){
-	multi = multi * mean_anom[i];
-	total_sum += multi;
-  }
-  sin_ecc_anom[tid] = total_sum;
+	  for (int i = tid_start; i < tid_end; i++){
+		multi = multi * input_array[i];
+		total_sum += multi;
+	  }
+	  //c[tid] = total_sum;
+	  output_array[tid_start] = total_sum;
 
 }
 
@@ -36,18 +38,17 @@ template <typename T>
 inline void apply_sumcumprod(cudaStream_t stream, void **buffers, const char *opaque,
                          std::size_t opaque_len) {
   const sumcumprodDescriptor &d = *UnpackDescriptor<sumcumprodDescriptor>(opaque, opaque_len);
-  const std::int64_t size = d.size;
+  const std::int64_t size = d.size1;
+  const std::int64_t size_of_last_dim = d.size2;
 
-  const T *mean_anom = reinterpret_cast<const T *>(buffers[0]);
-  T *sin_ecc_anom = reinterpret_cast<T *>(buffers[1]);
+  const T *input_array = reinterpret_cast<const T *>(buffers[0]);
+  T *output_array = reinterpret_cast<T *>(buffers[1]);
 
-  const int block_dim = 32;
   int NUM_THREADS = 64;  
-  int NUM_BLOCKS = (size + NUM_THREADS - 1) / NUM_THREADS;
+	int NUM_BLOCKS = (size + NUM_THREADS - 1) / NUM_THREADS;
 
-const int grid_dim = std::min<int>(1024, (size + block_dim - 1) / block_dim);
   sumcumprod_kernel<T>
-      <<<NUM_BLOCKS, NUM_THREADS, 0, stream>>>(size, mean_anom, sin_ecc_anom);
+      <<<NUM_BLOCKS, NUM_THREADS, 0, stream>>>(size, size_of_last_dim, input_array, output_array);
 
   ThrowIfError(cudaGetLastError());
 }

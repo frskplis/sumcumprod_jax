@@ -30,11 +30,7 @@ else:
 # This function exposes the primitive to user code and this is the only
 # public-facing function in this module
 
-
 def sumcumprod(input):
-    # We're going to apply array broadcasting here since the logic of our op
-    # is much simpler if we require the inputs to all have the same shapes
-
     return _sumcumprod_prim.bind(input)
 
 
@@ -68,6 +64,7 @@ def _sumcumprod_lowering(ctx, input, *, platform="cpu"):
 
     # The total size of the input is the product across dimensions
     size = np.prod(dims).astype(np.int64)
+    int_size_of_last_dim = dims[-1]
 
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
@@ -99,7 +96,7 @@ def _sumcumprod_lowering(ctx, input, *, platform="cpu"):
             )
         # On the GPU, we do things a little differently and encapsulate the
         # dimension using the 'opaque' parameter
-        opaque = gpu_ops.build_sumcumprod_descriptor(size)
+        opaque = gpu_ops.build_sumcumprod_descriptor(size, int_size_of_last_dim)
 
         return custom_call(
             op_name,
@@ -165,8 +162,8 @@ def _sumcumprod_jvp(args, tangents):
 # batching rules if you need such a thing.
 def _sumcumprod_batch(args, axes):
     x, = args
-    bd, = axes
-    x = jnp.moveaxis(x, bd, -1)
+    #bd, = axes
+    #x = jnp.moveaxis(x, bd, -1)
     return sumcumprod(x), axes
 
 

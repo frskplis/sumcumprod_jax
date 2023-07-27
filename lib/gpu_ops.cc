@@ -20,6 +20,6 @@ pybind11::dict Registrations() {
 PYBIND11_MODULE(gpu_ops, m) {
   m.def("registrations", &Registrations);
   m.def("build_sumcumprod_descriptor",
-        [](std::int64_t size) { return PackDescriptor(sumcumprodDescriptor{size}); });
+        [](std::int64_t size1 , std::int64_t size2) { return PackDescriptor(sumcumprodDescriptor{size1, size2}); });
 }
 }  // namespace

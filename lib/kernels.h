@@ -8,7 +8,8 @@
 
 namespace sumcumprod_jax {
 struct sumcumprodDescriptor {
-  std::int64_t size;
+  std::int64_t size1;
+  std::int64_t size2;
 };
 
 void gpu_sumcumprod_f32(cudaStream_t stream, void** buffers, const char* opaque,
