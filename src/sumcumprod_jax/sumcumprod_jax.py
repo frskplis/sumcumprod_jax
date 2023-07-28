@@ -11,6 +11,7 @@ from jax.abstract_arrays import ShapedArray
 from jax.interpreters import ad, batching, mlir, xla
 from jax.lib import xla_client
 from jaxlib.hlo_helpers import custom_call
+import jax
 
 # Register the CPU XLA custom calls
 from . import cpu_ops
@@ -30,8 +31,8 @@ else:
 # This function exposes the primitive to user code and this is the only
 # public-facing function in this module
 
-def sumcumprod(input):
-    return _sumcumprod_prim.bind(input)
+def sumcumprod(input1, input2):
+    return _sumcumprod_prim.bind(input1, input2)
 
 
 # *********************************
@@ -40,25 +41,28 @@ def sumcumprod(input):
 
 # For JIT compilation we need a function to evaluate the shape and dtype of the
 # outputs of our op for some given inputs
-def _sumcumprod_abstract(input):
-    shape = input.shape
-    dtype = dtypes.canonicalize_dtype(input.dtype)
-    return (ShapedArray(shape, dtype),)
+def _sumcumprod_abstract(input1, input2):
+    assert input1.shape == input2.shape
+    shape = input1.shape
+    dtype = dtypes.canonicalize_dtype(input1.dtype)
+    return ShapedArray(shape, dtype)
 
 
 # We also need a lowering rule to provide an MLIR "lowering" of out primitive.
 # This provides a mechanism for exposing our custom C++ and/or CUDA interfaces
 # to the JAX XLA backend. We're wrapping two translation rules into one here:
 # one for the CPU and one for the GPU
-def _sumcumprod_lowering(ctx, input, *, platform="cpu"):
+def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
+
+    assert input1.type == input2.type
 
     # Extract the numpy type of the inputs
-    input_aval = ctx.avals_in[0]
-    np_dtype = np.dtype(input_aval.dtype)
+    input1_aval, _ = ctx.avals_in
+    np_dtype = np.dtype(input1_aval.dtype)
 
     # The inputs and outputs all have the same shape and memory layout
     # so let's predefine this specification
-    dtype = mlir.ir.RankedTensorType(input.type)
+    dtype = mlir.ir.RankedTensorType(input1.type)
     dims = dtype.shape
     layout = tuple(range(len(dims) - 1, -1, -1))
 
@@ -83,9 +87,9 @@ def _sumcumprod_lowering(ctx, input, *, platform="cpu"):
             # Output types
             out_types=[dtype],
             # The inputs:
-            operands=[mlir.ir_constant(size), input],
+            operands=[mlir.ir_constant(size), input1, input2],
             # Layout specification:
-            operand_layouts=[(), layout],
+            operand_layouts=[(), layout, layout],
             result_layouts=[layout]
         )
 
@@ -103,9 +107,9 @@ def _sumcumprod_lowering(ctx, input, *, platform="cpu"):
             # Output types
             out_types=[dtype],
             # The inputs:
-            operands=[input],
+            operands=[input1, input2],
             # Layout specification:
-            operand_layouts=[layout],
+            operand_layouts=[layout, layout],
             result_layouts=[layout],
             # GPU specific additional data
             backend_config=opaque
@@ -131,26 +135,23 @@ def _sumcumprod_lowering(ctx, input, *, platform="cpu"):
 # reverse and higher order differentiation. This might not be true in other
 # applications, so check out the "How JAX primitives work" tutorial in the JAX
 # documentation for more info as necessary.
+
+def _pure_jax_sumcumprod(x,y):
+    assert x.ndim == y.ndim == 1
+    assert x.shape == y.shape
+    i = jnp.arange(x.shape[0])
+    mask = i[None, :] < i[:, None]
+    cumprod = jnp.where(mask, 1, 1 / (1 + x[None, :] * y[:, None])).cumprod(1)
+    return jnp.where(mask, 0, cumprod).sum(1)
+
 def _sumcumprod_jvp(args, tangents):
-    input = args
-    d_input = tangents
+    # Here we use jax pure function to calculate primals and tangents
+    input1, input2 = args
+    d_input1, d_input2 = tangents
 
-    # We use "bind" here because we don't want to mod the mean anomaly again
-    sin_ecc_anom, cos_ecc_anom = _sumcumprod_prim.bind(input, ecc)
+    res = jax.jvp(jax.vmap(_pure_jax_sumcumprod), (input1, input2, ), (d_input1, d_input2, ))
 
-    def zero_tangent(tan, val):
-        return lax.zeros_like_array(val) if type(tan) is ad.Zero else tan
-
-    # Propagate the derivatives
-    d_ecc_anom = (
-        zero_tangent(d_input, input)
-        + zero_tangent(d_ecc, ecc) * sin_ecc_anom
-    ) / (1 - ecc * cos_ecc_anom)
-
-    return (sin_ecc_anom, cos_ecc_anom), (
-        cos_ecc_anom * d_ecc_anom,
-        -sin_ecc_anom * d_ecc_anom,
-    )
+    return res
 
 
 # ************************************
@@ -161,17 +162,15 @@ def _sumcumprod_jvp(args, tangents):
 # simple. The jax.lax.linalg module includes some example of more complicated
 # batching rules if you need such a thing.
 def _sumcumprod_batch(args, axes):
-    x, = args
-    #bd, = axes
-    #x = jnp.moveaxis(x, bd, -1)
-    return sumcumprod(x), axes
+    assert axes[0] == axes[1]
+    return sumcumprod(*args), axes[0]
 
 
 # *********************************************
 # *  BOILERPLATE TO REGISTER THE OP WITH JAX  *
 # *********************************************
 _sumcumprod_prim = core.Primitive("sumcumprod")
-_sumcumprod_prim.multiple_results = True
+_sumcumprod_prim.multiple_results = False
 _sumcumprod_prim.def_impl(partial(xla.apply_primitive, _sumcumprod_prim))
 _sumcumprod_prim.def_abstract_eval(_sumcumprod_abstract)
 

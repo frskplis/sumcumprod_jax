@@ -11,17 +11,20 @@ namespace sumcumprod_jax {
 namespace {
 
 template <typename T>
-__global__ void sumcumprod_kernel(std::int64_t size, int size_of_last_dim, const T *input_array, T *output_array) {
+__global__ void sumcumprod_kernel(std::int64_t size, int size_of_last_dim, const T *input_array, const T *rs, T *output_array) {
 
   int tid_start = (blockIdx.x * blockDim.x) + threadIdx.x;
   int tid_end = tid_start + (size_of_last_dim - tid_start%size_of_last_dim);
 
   float total_sum = 0.0;
-  float multi = 1.0;
+  float multi_prev = 1.0;
+  float multi_cur = 0.0;
 
 	  for (int i = tid_start; i < tid_end; i++){
-		multi = multi * input_array[i];
-		total_sum += multi;
+      multi_cur = 1. / (1. + input_array[i] * rs[tid_start]);
+      multi_cur = multi_prev * multi_cur;
+      multi_prev = multi_cur;
+      total_sum += multi_cur;
 	  }
 	  //c[tid] = total_sum;
 	  output_array[tid_start] = total_sum;
@@ -41,14 +44,15 @@ inline void apply_sumcumprod(cudaStream_t stream, void **buffers, const char *op
   const std::int64_t size = d.size1;
   const std::int64_t size_of_last_dim = d.size2;
 
-  const T *input_array = reinterpret_cast<const T *>(buffers[0]);
-  T *output_array = reinterpret_cast<T *>(buffers[1]);
+  const T *input_array1 = reinterpret_cast<const T *>(buffers[0]);
+  const T *input_array2 = reinterpret_cast<const T *>(buffers[1]);
+  T *output_array = reinterpret_cast<T *>(buffers[2]);
 
   int NUM_THREADS = 64;  
 	int NUM_BLOCKS = (size + NUM_THREADS - 1) / NUM_THREADS;
 
   sumcumprod_kernel<T>
-      <<<NUM_BLOCKS, NUM_THREADS, 0, stream>>>(size, size_of_last_dim, input_array, output_array);
+      <<<NUM_BLOCKS, NUM_THREADS, 0, stream>>>(size, size_of_last_dim, input_array1, input_array2, output_array);
 
   ThrowIfError(cudaGetLastError());
 }
