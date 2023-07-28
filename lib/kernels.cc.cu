@@ -20,7 +20,7 @@ __global__ void sumcumprod_kernel(std::int64_t size, int size_of_last_dim, const
   float multi_cur = 0.0;
 
 	  for (int i = tid_start; i < tid_end; i++){
-      multi_cur = 1. / (1. + input_array[i] * rs[tid_start]);
+      multi_cur = __fdividef(1., (1. + input_array[i] * rs[tid_start]));
       multi_cur = multi_prev * multi_cur;
       multi_prev = multi_cur;
       total_sum += multi_cur;
