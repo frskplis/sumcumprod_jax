@@ -2,7 +2,6 @@
 // and I make no promises about the quality of the code or the choices made therein, but
 // it should get the point accross.
 
-#include "sumcumprod.h"
 #include "kernel_helpers.h"
 #include "kernels.h"
 

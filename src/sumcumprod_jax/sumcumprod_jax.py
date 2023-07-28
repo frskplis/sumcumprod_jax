@@ -78,6 +78,7 @@ def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
+    print(int_size_of_last_dim)
     # And then the following is what changes between the GPU and CPU
     if platform == "cpu":
         # On the CPU, we pass the size of the data as a the first input
@@ -86,10 +87,10 @@ def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
             op_name,
             # Output types
             out_types=[dtype],
-            # The inputs:
-            operands=[mlir.ir_constant(size), input1, input2],
+            # The inputs have to be int32 because for int64 for some reason it does not work:
+            operands=[mlir.ir_constant(np.int32(size)), mlir.ir_constant(np.int32(int_size_of_last_dim)), input1, input2],
             # Layout specification:
-            operand_layouts=[(), layout, layout],
+            operand_layouts=[(), (), layout, layout],
             result_layouts=[layout]
         )
 

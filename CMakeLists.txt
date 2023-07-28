@@ -10,9 +10,21 @@ include_directories(${CMAKE_CURRENT_LIST_DIR}/lib)
 
 # CPU op library
 pybind11_add_module(cpu_ops ${CMAKE_CURRENT_LIST_DIR}/lib/cpu_ops.cc)
+
+find_package(OpenMP)  # Added
+
+if(OpenMP_CXX_FOUND)  # Added
+    message("OpenMP is enabled")
+    target_link_libraries(cpu_ops PUBLIC OpenMP::OpenMP_CXX)  # Added
+    add_compile_options(-fopenmp)  # Added
+else()
+    message("OpenMP is not enabled")
+endif()
+
 install(TARGETS cpu_ops DESTINATION sumcumprod_jax)
 
 if (SUMCUMPROD_JAX_CUDA)
+  message(STATUS "Building with CUDA")
   enable_language(CUDA)
   include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
   pybind11_add_module(

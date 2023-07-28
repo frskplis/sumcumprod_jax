@@ -2,7 +2,7 @@
 // It is exposed as a standard pybind11 module defining "capsule" objects containing our
 // method. For simplicity, we export a separate capsule for each supported dtype.
 
-#include "sumcumprod.h"
+#include <omp.h>
 #include "pybind11_kernel_helpers.h"
 
 using namespace sumcumprod_jax;
@@ -10,17 +10,32 @@ using namespace sumcumprod_jax;
 namespace {
 
 template <typename T>
-void cpu_sumcumprod(void *out_tuple, const void **in) {
+void cpu_sumcumprod(void *out, const void **in) {
   // Parse the inputs
-  const std::int64_t size = *reinterpret_cast<const std::int64_t *>(in[0]);
-  const T *mean_anom = reinterpret_cast<const T *>(in[1]);
+  const std::int32_t size = *reinterpret_cast<const std::int32_t *>(in[0]);
+  const std::int32_t size_of_last_dim = *reinterpret_cast<const std::int32_t *>(in[1]);
+
+  const T *input1 = reinterpret_cast<const T *>(in[2]);
+  const T *input2 = reinterpret_cast<const T *>(in[3]);
 
   // The output is stored as a list of pointers since we have multiple outputs
-  void **out = reinterpret_cast<void **>(out_tuple);
-  T *sin_ecc_anom = reinterpret_cast<T *>(out[0]);
+  //void **out = reinterpret_cast<void **>(out_tuple);
+  T *output = reinterpret_cast<T *>(out);
+  
+  #pragma omp parallel for
+  for (std::int32_t i = 0; i < size; i++){
+    float total_sum = 0.0;
+    float multi_prev = 1.0;
+    float multi_cur = 0.0;
+    std::int32_t idx_end = i + (size_of_last_dim - i%size_of_last_dim);
 
-  for (std::int64_t n = 0; n < size; ++n) {
-    compute_eccentric_anomaly(mean_anom[n], sin_ecc_anom + n);
+      for (std::int32_t j = i; j < idx_end; j++) {
+      multi_cur = 1. / (1. + input1[i] * input2[i]);
+      multi_cur = multi_prev * multi_cur;
+      multi_prev = multi_cur;
+      total_sum += multi_cur;
+	  }
+	  output[i] = total_sum;
   }
 }
 
