@@ -28,13 +28,13 @@ jobs:
       - name: Install dependencies
         run: |
           set -x
-          python -m pip install -U pip
-          python -m pip install .[test]
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             echo "Running on macOS, attempting to install libomp"
             brew install libomp
           fi
           echo "Testing echoing..."
+          python -m pip install -U pip
+          python -m pip install .[test]
 
       - name: Run tests
         run: python -m pytest -v tests
