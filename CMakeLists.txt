@@ -20,6 +20,7 @@ if(OpenMP_CXX_FOUND)  # Added
       add_compile_options(-Xpreprocessor -fopenmp -lomp)
     else()
       add_compile_options(-fopenmp)
+    endif()
 else()
     message("OpenMP is not enabled")
 endif()
