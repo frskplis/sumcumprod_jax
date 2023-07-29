@@ -16,7 +16,10 @@ find_package(OpenMP)  # Added
 if(OpenMP_CXX_FOUND)  # Added
     message("OpenMP is enabled")
     target_link_libraries(cpu_ops PUBLIC OpenMP::OpenMP_CXX)  # Added
-    add_compile_options(-fopenmp)  # Added
+    if (APPLE)
+      add_compile_options(-Xpreprocessor -fopenmp -lomp)
+    else()
+      add_compile_options(-fopenmp)
 else()
     message("OpenMP is not enabled")
 endif()
