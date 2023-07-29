@@ -25,7 +25,6 @@ __global__ void sumcumprod_kernel(std::int64_t size, int size_of_last_dim, const
       multi_prev = multi_cur;
       total_sum += multi_cur;
 	  }
-	  //c[tid] = total_sum;
 	  output_array[tid_start] = total_sum;
 
 }

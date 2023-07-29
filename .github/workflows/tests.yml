@@ -29,6 +29,9 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install .[test]
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install libomp
+          fi
 
       - name: Run tests
         run: python -m pytest -v tests
