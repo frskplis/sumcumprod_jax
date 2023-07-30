@@ -32,7 +32,8 @@ else:
 # public-facing function in this module
 
 def sumcumprod(input1, input2):
-    return _sumcumprod_prim.bind(input1, input2)
+    x, y = jnp.broadcast_arrays(input1, input2)
+    return _sumcumprod_prim.bind(x, y)
 
 
 # *********************************
@@ -42,7 +43,7 @@ def sumcumprod(input1, input2):
 # For JIT compilation we need a function to evaluate the shape and dtype of the
 # outputs of our op for some given inputs
 def _sumcumprod_abstract(input1, input2):
-    assert input1.shape == input2.shape
+    assert input1.shape == input2.shape, f"shapes mismtach {input1.shape=}, {input2.shape=}"
     shape = input1.shape
     dtype = dtypes.canonicalize_dtype(input1.dtype)
     return ShapedArray(shape, dtype)
@@ -54,7 +55,7 @@ def _sumcumprod_abstract(input1, input2):
 # one for the CPU and one for the GPU
 def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
 
-    assert input1.type == input2.type
+    assert input1.type == input2.type, f"Mismatched types {input1.type} and {input2.type}"
 
     # Extract the numpy type of the inputs
     input1_aval, _ = ctx.avals_in
@@ -163,8 +164,14 @@ def _sumcumprod_jvp(args, tangents):
 # simple. The jax.lax.linalg module includes some example of more complicated
 # batching rules if you need such a thing.
 def _sumcumprod_batch(args, axes):
-    assert axes[0] == axes[1]
-    return sumcumprod(*args), axes[0]
+    #assert axes[0] == axes[1], f"Incorrect dimensions axes[0] = {axes[0]}, axes[1] = {axes[1]}"
+    x, y = args[0], args[1]
+    # bd1, bd2 = axes[0], axes[1]
+    # x = jnp.moveaxis(x, bd1, 0)
+    # y = jnp.moveaxis(y, bd2, 0)
+
+    return sumcumprod(x,y), 0
+
 
 
 # *********************************************
