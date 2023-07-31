@@ -14,6 +14,9 @@ pybind11::dict Registrations() {
   pybind11::dict dict;
   dict["gpu_sumcumprod_f32"] = EncapsulateFunction(gpu_sumcumprod_f32);
   dict["gpu_sumcumprod_f64"] = EncapsulateFunction(gpu_sumcumprod_f64);
+  dict["gpu_sumcumprod_masked_f32"] = EncapsulateFunction(gpu_sumcumprod_masked_f32);
+  dict["gpu_sumcumprod_masked_f64"] = EncapsulateFunction(gpu_sumcumprod_masked_f64);
+
   return dict;
 }
 

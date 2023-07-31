@@ -35,6 +35,10 @@ def sumcumprod(input1, input2):
     x, y = jnp.broadcast_arrays(input1, input2)
     return _sumcumprod_prim.bind(x, y)
 
+def sumcumprod_masked(input1, input2):
+    x, y = jnp.broadcast_arrays(input1, input2)
+    return _sumcumprod_masked_prim.bind(x, y)
+
 
 # *********************************
 # *  SUPPORT FOR JIT COMPILATION  *
@@ -48,6 +52,11 @@ def _sumcumprod_abstract(input1, input2):
     dtype = dtypes.canonicalize_dtype(input1.dtype)
     return ShapedArray(shape, dtype)
 
+def _sumcumprod_masked_abstract(input1, input2):
+    assert input1.shape == input2.shape, f"shapes mismtach {input1.shape=}, {input2.shape=}"
+    shape = input1.shape
+    dtype = dtypes.canonicalize_dtype(input1.dtype)
+    return ShapedArray(shape, dtype)
 
 # We also need a lowering rule to provide an MLIR "lowering" of out primitive.
 # This provides a mechanism for exposing our custom C++ and/or CUDA interfaces
@@ -76,6 +85,74 @@ def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
         op_name = platform + "_sumcumprod_f32"
     elif np_dtype == np.float64:
         op_name = platform + "_sumcumprod_f64"
+    else:
+        raise NotImplementedError(f"Unsupported dtype {np_dtype}")
+
+    print(int_size_of_last_dim)
+    # And then the following is what changes between the GPU and CPU
+    if platform == "cpu":
+        # On the CPU, we pass the size of the data as a the first input
+        # argument
+        return custom_call(
+            op_name,
+            # Output types
+            out_types=[dtype],
+            # The inputs have to be int32 because for int64 for some reason it does not work:
+            operands=[mlir.ir_constant(np.int32(size)), mlir.ir_constant(np.int32(int_size_of_last_dim)), input1, input2],
+            # Layout specification:
+            operand_layouts=[(), (), layout, layout],
+            result_layouts=[layout]
+        )
+
+    elif platform == "gpu":
+        if gpu_ops is None:
+            raise ValueError(
+                "The 'sumcumprod_jax' module was not compiled with CUDA support"
+            )
+        # On the GPU, we do things a little differently and encapsulate the
+        # dimension using the 'opaque' parameter
+        opaque = gpu_ops.build_sumcumprod_descriptor(size, int_size_of_last_dim)
+
+        return custom_call(
+            op_name,
+            # Output types
+            out_types=[dtype],
+            # The inputs:
+            operands=[input1, input2],
+            # Layout specification:
+            operand_layouts=[layout, layout],
+            result_layouts=[layout],
+            # GPU specific additional data
+            backend_config=opaque
+        )
+
+    raise ValueError(
+        "Unsupported platform; this must be either 'cpu' or 'gpu'"
+    )
+
+def _sumcumprod_masked_lowering(ctx, input1, input2, *, platform="cpu"):
+
+    assert input1.type == input2.type, f"Mismatched types {input1.type} and {input2.type}"
+
+    # Extract the numpy type of the inputs
+    input1_aval, _ = ctx.avals_in
+    np_dtype = np.dtype(input1_aval.dtype)
+
+    # The inputs and outputs all have the same shape and memory layout
+    # so let's predefine this specification
+    dtype = mlir.ir.RankedTensorType(input1.type)
+    dims = dtype.shape
+    layout = tuple(range(len(dims) - 1, -1, -1))
+
+    # The total size of the input is the product across dimensions
+    size = np.prod(dims).astype(np.int64)
+    int_size_of_last_dim = dims[-1]
+
+    # We dispatch a different call depending on the dtype
+    if np_dtype == np.float32:
+        op_name = platform + "_sumcumprod_masked_f32"
+    elif np_dtype == np.float64:
+        op_name = platform + "_sumcumprod_masked_f64"
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
@@ -155,6 +232,15 @@ def _sumcumprod_jvp(args, tangents):
 
     return res
 
+def _sumcumprod_masked_jvp(args, tangents):
+    # Here we use jax pure function to calculate primals and tangents
+    input1, input2 = args
+    d_input1, d_input2 = tangents
+
+    res = jax.jvp(jax.vmap(_pure_jax_sumcumprod), (input1, input2, ), (d_input1, d_input2, ))
+
+    return res
+
 
 # ************************************
 # *  SUPPORT FOR BATCHING WITH VMAP  *
@@ -173,6 +259,17 @@ def _sumcumprod_batch(args, axes):
     return sumcumprod(x,y), 0
 
 
+def _sumcumprod_masked_batch(args, axes):
+    #assert axes[0] == axes[1], f"Incorrect dimensions axes[0] = {axes[0]}, axes[1] = {axes[1]}"
+    x, y = args[0], args[1]
+    # bd1, bd2 = axes[0], axes[1]
+    # x = jnp.moveaxis(x, bd1, 0)
+    # y = jnp.moveaxis(y, bd2, 0)
+
+    return sumcumprod_masked(x,y), 0
+
+
+
 
 # *********************************************
 # *  BOILERPLATE TO REGISTER THE OP WITH JAX  *
@@ -182,13 +279,29 @@ _sumcumprod_prim.multiple_results = False
 _sumcumprod_prim.def_impl(partial(xla.apply_primitive, _sumcumprod_prim))
 _sumcumprod_prim.def_abstract_eval(_sumcumprod_abstract)
 
+_sumcumprod_masked_prim = core.Primitive("sumcumprod")
+_sumcumprod_masked_prim.multiple_results = False
+_sumcumprod_masked_prim.def_impl(partial(xla.apply_primitive, _sumcumprod_masked_prim))
+_sumcumprod_masked_prim.def_abstract_eval(_sumcumprod_masked_abstract)
+
+
 # Connect the XLA translation rules for JIT compilation
 for platform in ["cpu", "gpu"]:
     mlir.register_lowering(
         _sumcumprod_prim,
         partial(_sumcumprod_lowering, platform=platform),
         platform=platform)
+    
+    mlir.register_lowering(
+        _sumcumprod_masked_prim,
+        partial(_sumcumprod_masked_lowering, platform=platform),
+        platform=platform)
 
 # Connect the JVP and batching rules
 ad.primitive_jvps[_sumcumprod_prim] = _sumcumprod_jvp
 batching.primitive_batchers[_sumcumprod_prim] = _sumcumprod_batch
+
+ad.primitive_jvps[_sumcumprod_masked_prim] = _sumcumprod_masked_jvp # todo: correct this
+batching.primitive_batchers[_sumcumprod_masked_prim] = _sumcumprod_masked_batch # todo: correct this
+
+

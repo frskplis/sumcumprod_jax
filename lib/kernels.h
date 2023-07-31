@@ -16,6 +16,10 @@ void gpu_sumcumprod_f32(cudaStream_t stream, void** buffers, const char* opaque,
                     std::size_t opaque_len);
 void gpu_sumcumprod_f64(cudaStream_t stream, void** buffers, const char* opaque,
                     std::size_t opaque_len);
+void gpu_sumcumprod_masked_f32(cudaStream_t stream, void** buffers, const char* opaque,
+                    std::size_t opaque_len);
+void gpu_sumcumprod_masked_f64(cudaStream_t stream, void** buffers, const char* opaque,
+                    std::size_t opaque_len);
 
 }  // namespace sumcumprod_jax
 
