@@ -7,7 +7,7 @@ from functools import partial
 import numpy as np
 from jax import core, dtypes, lax
 from jax import numpy as jnp
-from jax.abstract_arrays import ShapedArray
+from jax.core import ShapedArray
 from jax.interpreters import ad, batching, mlir, xla
 from jax.lib import xla_client
 from jaxlib.hlo_helpers import custom_call
@@ -17,7 +17,7 @@ import jax
 from . import cpu_ops
 
 for _name, _value in cpu_ops.registrations().items():
-    xla_client.register_cpu_custom_call_target(_name, _value)
+    xla_client.register_custom_call_target(_name, _value, platform="cpu")   
 
 # If the GPU version exists, also register those
 try:
@@ -96,13 +96,13 @@ def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
         return custom_call(
             op_name,
             # Output types
-            out_types=[dtype],
+            result_types=[dtype],
             # The inputs have to be int32 because for int64 for some reason it does not work:
             operands=[mlir.ir_constant(np.int32(size)), mlir.ir_constant(np.int32(int_size_of_last_dim)), input1, input2],
             # Layout specification:
             operand_layouts=[(), (), layout, layout],
             result_layouts=[layout]
-        )
+        ).results
 
     elif platform == "gpu":
         if gpu_ops is None:
@@ -116,7 +116,7 @@ def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
         return custom_call(
             op_name,
             # Output types
-            out_types=[dtype],
+            result_types=[dtype],
             # The inputs:
             operands=[input1, input2],
             # Layout specification:
@@ -124,7 +124,7 @@ def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
             result_layouts=[layout],
             # GPU specific additional data
             backend_config=opaque
-        )
+        ).results
 
     raise ValueError(
         "Unsupported platform; this must be either 'cpu' or 'gpu'"
