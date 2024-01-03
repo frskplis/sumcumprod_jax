@@ -88,7 +88,6 @@ def _sumcumprod_lowering(ctx, input1, input2, *, platform="cpu"):
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
-    print(int_size_of_last_dim)
     # And then the following is what changes between the GPU and CPU
     if platform == "cpu":
         # On the CPU, we pass the size of the data as a the first input
