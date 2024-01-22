@@ -11,4 +11,4 @@ def grand_true_function(x,y):
     return jnp.where(mask, 0, cumprod).sum(1)
 ```
 
-but should be much faster in execution due to smaller memory requirements.
+but should be much faster in execution due to smaller memory requirements.# finrisklib_cuda
